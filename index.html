@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0f">
+<title>Nachiket Agent</title>
+<link rel="manifest" href="/manifest.json">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c26;
+    --border: rgba(255,255,255,0.07);
+    --text: #f0f0f5;
+    --muted: #6b6b80;
+    --accent: #7c6af7;
+    --accent2: #4fc4a0;
+    --accent3: #f7a26a;
+    --danger: #f76a6a;
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; overflow-x: hidden; }
+
+  /* Auth Screen */
+  #auth-screen {
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 2rem;
+    background: radial-gradient(ellipse at 30% 20%, rgba(124,106,247,0.15) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 80%, rgba(79,196,160,0.1) 0%, transparent 60%),
+                var(--bg);
+  }
+  .auth-logo {
+    width: 72px; height: 72px; border-radius: 20px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 700;
+    margin-bottom: 2rem;
+    box-shadow: 0 0 40px rgba(124,106,247,0.3);
+  }
+  .auth-title { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 700; margin-bottom: 0.5rem; text-align: center; }
+  .auth-sub { color: var(--muted); font-size: 15px; text-align: center; margin-bottom: 2.5rem; line-height: 1.6; }
+  .auth-btn {
+    width: 100%; max-width: 320px; padding: 16px 24px;
+    background: white; color: #1a1a2e;
+    border: none; border-radius: var(--radius); cursor: pointer;
+    font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .auth-btn:active { transform: scale(0.97); }
+  .auth-btn img { width: 20px; height: 20px; }
+  .auth-note { margin-top: 1.5rem; font-size: 12px; color: var(--muted); text-align: center; max-width: 280px; line-height: 1.6; }
+
+  /* Main App */
+  #app { display: none; min-height: 100vh; padding-bottom: 80px; }
+
+  /* Header */
+  .header {
+    padding: 56px 20px 20px;
+    background: linear-gradient(180deg, rgba(124,106,247,0.12) 0%, transparent 100%);
+  }
+  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .header-greeting { font-size: 13px; color: var(--muted); font-weight: 400; }
+  .header-name { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; }
+  .header-date { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px;
+  }
+
+  /* Stats row */
+  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 0 20px 20px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 14px 12px;
+    text-align: center;
+  }
+  .stat-num { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; }
+  .stat-num.purple { color: var(--accent); }
+  .stat-num.green { color: var(--accent2); }
+  .stat-num.orange { color: var(--accent3); }
+  .stat-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 8px; padding: 0 20px 16px; overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    padding: 8px 18px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: 13px;
+    cursor: pointer; white-space: nowrap; transition: all 0.2s;
+  }
+  .tab-btn.active { background: var(--accent); border-color: var(--accent); color: white; }
+
+  /* Section */
+  .section { display: none; padding: 0 20px; }
+  .section.active { display: block; }
+  .section-label { font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
+
+  /* Task input */
+  .task-input-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .task-input-row input {
+    flex: 1; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 12px 14px; color: var(--text);
+    font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none;
+  }
+  .task-input-row input::placeholder { color: var(--muted); }
+  .task-input-row input:focus { border-color: var(--accent); }
+  .cat-select {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 12px 10px; color: var(--muted);
+    font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none;
+    cursor: pointer;
+  }
+  .add-btn {
+    width: 44px; height: 44px; border-radius: var(--radius-sm);
+    background: var(--accent); border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; color: white; flex-shrink: 0;
+    transition: transform 0.15s;
+  }
+  .add-btn:active { transform: scale(0.92); }
+
+  /* Task list */
+  .task-item {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 14px;
+    display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+    transition: opacity 0.2s;
+  }
+  .task-item.done { opacity: 0.5; }
+  .task-check {
+    width: 22px; height: 22px; border-radius: 6px;
+    border: 1.5px solid var(--border); background: transparent;
+    cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .task-check.checked { background: var(--accent2); border-color: var(--accent2); }
+  .task-check.checked::after { content: '✓'; color: white; font-size: 13px; font-weight: 600; }
+  .task-text { flex: 1; font-size: 14px; line-height: 1.4; }
+  .task-text.done { text-decoration: line-through; color: var(--muted); }
+  .cat-badge { font-size: 10px; padding: 3px 8px; border-radius: 999px; font-weight: 500; flex-shrink: 0; }
+  .cat-azure { background: rgba(124,106,247,0.15); color: var(--accent); }
+  .cat-career { background: rgba(79,196,160,0.15); color: var(--accent2); }
+  .cat-ai { background: rgba(247,162,106,0.15); color: var(--accent3); }
+  .cat-other { background: rgba(107,107,128,0.15); color: var(--muted); }
+  .task-del { color: var(--muted); cursor: pointer; font-size: 16px; padding: 4px; flex-shrink: 0; }
+  .empty-tasks { text-align: center; padding: 2.5rem 1rem; color: var(--muted); font-size: 14px; }
+
+  /* LinkedIn section */
+  .li-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+  .li-card label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 6px; }
+  .li-card select, .li-card textarea {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 12px 14px; color: var(--text);
+    font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none; margin-bottom: 12px;
+  }
+  .li-card select:focus, .li-card textarea:focus { border-color: var(--accent); }
+  .li-card textarea { resize: none; min-height: 90px; line-height: 1.5; }
+  .week-highlight {
+    background: rgba(124,106,247,0.08); border: 1px solid rgba(124,106,247,0.2);
+    border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;
+    font-size: 13px; color: var(--muted); line-height: 1.6;
+  }
+  .gen-btn {
+    width: 100%; padding: 15px; border-radius: var(--radius);
+    background: linear-gradient(135deg, var(--accent), #5b4fdb);
+    border: none; color: white; font-family: 'Syne', sans-serif;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 4px 20px rgba(124,106,247,0.3);
+  }
+  .gen-btn:active { transform: scale(0.97); }
+  .gen-btn:disabled { opacity: 0.5; }
+  .loading { text-align: center; padding: 1rem; color: var(--muted); font-size: 14px; display: none; }
+  .output-card {
+    background: var(--surface); border: 1px solid rgba(79,196,160,0.2);
+    border-radius: var(--radius); padding: 16px; margin-top: 12px; display: none;
+  }
+  .output-label { font-size: 11px; color: var(--accent2); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; font-weight: 500; }
+  .output-text { font-size: 14px; line-height: 1.7; white-space: pre-wrap; color: var(--text); }
+  .copy-btn {
+    margin-top: 14px; width: 100%; padding: 12px;
+    background: rgba(79,196,160,0.1); border: 1px solid rgba(79,196,160,0.25);
+    border-radius: var(--radius-sm); color: var(--accent2);
+    font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer;
+    transition: background 0.2s;
+  }
+  .copy-btn:active { background: rgba(79,196,160,0.2); }
+
+  /* Calendar & Gmail section */
+  .ai-input-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .ai-input-row input {
+    flex: 1; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 12px 14px; color: var(--text);
+    font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none;
+  }
+  .ai-input-row input:focus { border-color: var(--accent); }
+  .ask-btn {
+    padding: 12px 16px; border-radius: var(--radius-sm);
+    background: var(--accent); border: none; color: white;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer;
+    white-space: nowrap; transition: transform 0.15s;
+  }
+  .ask-btn:active { transform: scale(0.95); }
+  .ask-btn:disabled { opacity: 0.5; }
+  .ai-response {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px; margin-top: 8px;
+    font-size: 14px; line-height: 1.7; color: var(--text); display: none;
+    white-space: pre-wrap;
+  }
+  .quick-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .quick-btn {
+    padding: 8px 14px; border-radius: 999px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--muted); font-size: 12px; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+  }
+  .quick-btn:active { border-color: var(--accent); color: var(--accent); }
+
+  /* Bottom nav */
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: rgba(19,19,26,0.95); backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    display: flex; padding: 12px 0 20px; z-index: 100;
+  }
+  .nav-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    cursor: pointer; padding: 4px 0;
+  }
+  .nav-icon { font-size: 20px; line-height: 1; }
+  .nav-label { font-size: 10px; color: var(--muted); transition: color 0.2s; }
+  .nav-item.active .nav-label { color: var(--accent); }
+  .nav-item.active .nav-icon { filter: brightness(1.5); }
+
+  /* Spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+</style>
+</head>
+<body>
+
+<!-- Auth Screen -->
+<div id="auth-screen">
+  <div class="auth-logo">N</div>
+  <div class="auth-title">Nachiket Agent</div>
+  <div class="auth-sub">Taro personal AI assistant — tasks, calendar, Gmail, ane LinkedIn badhu ek jagya</div>
+  <button class="auth-btn" onclick="handleGoogleLogin()">
+    <img src="https://www.google.com/favicon.ico" alt="Google">
+    Google sathe login karo
+  </button>
+  <div class="auth-note">Tara Gmail ane Calendar read karva mate Google login joie. Koi data share nathi thatu.</div>
+</div>
+
+<!-- Main App -->
+<div id="app">
+  <div class="header">
+    <div class="header-top">
+      <div>
+        <div class="header-greeting" id="greeting">Good morning</div>
+        <div class="header-name">Nachiket 👋</div>
+        <div class="header-date" id="todayDate"></div>
+      </div>
+      <div class="avatar">NP</div>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-num purple" id="s-total">0</div><div class="stat-label">Tasks</div></div>
+    <div class="stat-card"><div class="stat-num green" id="s-done">0</div><div class="stat-label">Done</div></div>
+    <div class="stat-card"><div class="stat-num orange" id="s-pending">0</div><div class="stat-label">Pending</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('tasks', this)">✅ Tasks</button>
+    <button class="tab-btn" onclick="switchTab('linkedin', this)">💼 LinkedIn</button>
+    <button class="tab-btn" onclick="switchTab('assistant', this)">🤖 Assistant</button>
+  </div>
+
+  <!-- Tasks Tab -->
+  <div id="tab-tasks" class="section active">
+    <div class="section-label">Aaj nu kaam</div>
+    <div class="task-input-row">
+      <input type="text" id="taskInput" placeholder="Navu task add karo..." onkeydown="if(event.key==='Enter') addTask()">
+      <select class="cat-select" id="taskCat">
+        <option value="azure">⚡ Azure</option>
+        <option value="career">🎯 Career</option>
+        <option value="ai">🤖 AI</option>
+        <option value="other">📌 Other</option>
+      </select>
+      <button class="add-btn" onclick="addTask()">+</button>
+    </div>
+    <div id="taskList"><div class="empty-tasks">Koi task nathi — upar thi add karo 👆</div></div>
+
+    <div style="margin-top: 20px;">
+      <div class="section-label">Week highlights (LinkedIn mate)</div>
+      <textarea id="weekHighlights" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;resize:none;min-height:80px;line-height:1.5;" placeholder="Aa week ma shu karyun? e.g. ADF pipeline deploy karyun, Databricks certification complete karyun..."></textarea>
+    </div>
+  </div>
+
+  <!-- LinkedIn Tab -->
+  <div id="tab-linkedin" class="section">
+    <div class="li-card">
+      <div class="week-highlight" id="weekPreview">Tasks tab ma week highlights add karo — ae ahi dikhshe</div>
+      <label>Topic</label>
+      <select id="liTopic">
+        <option value="data_engineering">Data Engineering / Azure</option>
+        <option value="career">Career & Learning Journey</option>
+        <option value="ai_trends">AI & Tech Trends</option>
+      </select>
+      <label>Key points</label>
+      <textarea id="liPoints" placeholder="e.g. ADF pipeline optimize karyu, Delta Live Tables sikhyu, PR application progress..."></textarea>
+      <label>Tone</label>
+      <select id="liTone">
+        <option value="personal">Personal & authentic</option>
+        <option value="story">Storytelling</option>
+        <option value="tips">Tips & insights</option>
+      </select>
+    </div>
+    <button class="gen-btn" id="genBtn" onclick="generateLinkedIn()">✨ LinkedIn Post Generate Karo</button>
+    <div class="loading" id="liLoading"><span class="spinner"></span>Claude post lakhse che...</div>
+    <div class="output-card" id="outputCard">
+      <div class="output-label">Taro post ready che</div>
+      <div class="output-text" id="outputText"></div>
+      <button class="copy-btn" onclick="copyPost()">📋 Copy to clipboard</button>
+    </div>
+  </div>
+
+  <!-- Assistant Tab -->
+  <div id="tab-assistant" class="section">
+    <div class="section-label">Quick questions</div>
+    <div class="quick-btns">
+      <button class="quick-btn" onclick="quickAsk('Aaj nu schedule shu che?')">📅 Aaj nu schedule</button>
+      <button class="quick-btn" onclick="quickAsk('Inbox ma important emails che?')">📧 Important emails</button>
+      <button class="quick-btn" onclick="quickAsk('Aaj shu priority tasks che?')">🎯 Priority tasks</button>
+      <button class="quick-btn" onclick="quickAsk('Week summary banavo')">📊 Week summary</button>
+    </div>
+    <div class="section-label">Koi pan puchho</div>
+    <div class="ai-input-row">
+      <input type="text" id="assistantInput" placeholder="Koi pan puchho..." onkeydown="if(event.key==='Enter') askAssistant()">
+      <button class="ask-btn" id="askBtn" onclick="askAssistant()">Puchho</button>
+    </div>
+    <div class="loading" id="assistantLoading" style="display:none; text-align:center; padding:1rem; color:var(--muted); font-size:14px;"><span class="spinner"></span>Vicharchu che...</div>
+    <div class="ai-response" id="aiResponse"></div>
+  </div>
+
+  <div class="bottom-nav">
+    <div class="nav-item active" id="nav-tasks" onclick="switchTab('tasks', null, 'nav-tasks')">
+      <div class="nav-icon">✅</div><div class="nav-label">Tasks</div>
+    </div>
+    <div class="nav-item" id="nav-linkedin" onclick="switchTab('linkedin', null, 'nav-linkedin')">
+      <div class="nav-icon">💼</div><div class="nav-label">LinkedIn</div>
+    </div>
+    <div class="nav-item" id="nav-assistant" onclick="switchTab('assistant', null, 'nav-assistant')">
+      <div class="nav-icon">🤖</div><div class="nav-label">Assistant</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const GEMINI_KEY = 'YOUR_GEMINI_API_KEY';
+const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID';
+const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly';
+
+let tasks = JSON.parse(localStorage.getItem('n_tasks') || '[]');
+let accessToken = localStorage.getItem('n_gtoken') || '';
+
+function saveTasks() { localStorage.setItem('n_tasks', JSON.stringify(tasks)); }
+
+function init() {
+  const urlParams = new URLSearchParams(window.location.hash.replace('#','?'));
+  const token = urlParams.get('access_token');
+  if (token) { accessToken = token; localStorage.setItem('n_gtoken', token); window.history.replaceState({}, '', '/'); }
+  if (accessToken) showApp();
+  setGreeting();
+  document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-CA', { weekday:'long', month:'long', day:'numeric' });
+  renderTasks();
+}
+
+function setGreeting() {
+  const h = new Date().getHours();
+  const g = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  document.getElementById('greeting').textContent = g;
+}
+
+function handleGoogleLogin() {
+  const redirectUri = window.location.origin + '/auth/callback';
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token&scope=${encodeURIComponent(SCOPES)}&prompt=consent`;
+  window.location.href = url;
+}
+
+function showApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+}
+
+function switchTab(name, btn, navId) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+  const nav = navId || 'nav-' + name;
+  document.getElementById(nav)?.classList.add('active');
+  if (name === 'linkedin') updateWeekPreview();
+}
+
+function updateWeekPreview() {
+  const highlights = document.getElementById('weekHighlights').value.trim();
+  const done = tasks.filter(t => t.done).map(t => t.text);
+  let preview = '';
+  if (highlights) preview += highlights;
+  if (done.length) preview += (preview ? '\n' : '') + 'Completed: ' + done.join(', ');
+  document.getElementById('weekPreview').textContent = preview || 'Tasks tab ma week highlights add karo — ae ahi dikhshe';
+}
+
+const catMap = { azure: ['Azure/Data', 'cat-azure'], career: ['Career', 'cat-career'], ai: ['AI/Tech', 'cat-ai'], other: ['Other', 'cat-other'] };
+
+function addTask() {
+  const inp = document.getElementById('taskInput');
+  const cat = document.getElementById('taskCat').value;
+  const text = inp.value.trim();
+  if (!text) return;
+  tasks.unshift({ id: Date.now(), text, cat, done: false });
+  inp.value = ''; saveTasks(); renderTasks();
+}
+
+function toggleTask(id) {
+  const t = tasks.find(t => t.id === id);
+  if (t) { t.done = !t.done; saveTasks(); renderTasks(); }
+}
+
+function deleteTask(id) {
+  tasks = tasks.filter(t => t.id !== id); saveTasks(); renderTasks();
+}
+
+function renderTasks() {
+  const list = document.getElementById('taskList');
+  if (!tasks.length) { list.innerHTML = '<div class="empty-tasks">Koi task nathi — upar thi add karo 👆</div>'; }
+  else {
+    list.innerHTML = tasks.map(t => {
+      const [label, cls] = catMap[t.cat] || ['Other', 'cat-other'];
+      return `<div class="task-item ${t.done ? 'done' : ''}">
+        <div class="task-check ${t.done ? 'checked' : ''}" onclick="toggleTask(${t.id})"></div>
+        <div class="task-text ${t.done ? 'done' : ''}">${t.text}</div>
+        <span class="cat-badge ${cls}">${label}</span>
+        <span class="task-del" onclick="deleteTask(${t.id})">✕</span>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('s-total').textContent = tasks.length;
+  document.getElementById('s-done').textContent = tasks.filter(t => t.done).length;
+  document.getElementById('s-pending').textContent = tasks.filter(t => !t.done).length;
+}
+
+async function generateLinkedIn() {
+  const topic = document.getElementById('liTopic').value;
+  const points = document.getElementById('liPoints').value.trim();
+  const tone = document.getElementById('liTone').value;
+  const highlights = document.getElementById('weekHighlights').value.trim();
+  const done = tasks.filter(t => t.done).map(t => t.text);
+
+  const topicMap = { data_engineering: 'Data Engineering and Azure cloud work', career: 'Career growth and learning journey in Canada', ai_trends: 'AI and Tech trends' };
+  const toneMap = { personal: 'personal and authentic tone', story: 'storytelling narrative with a hook', tips: 'practical tips and insights list' };
+
+  let ctx = '';
+  if (highlights) ctx += `Week highlights: ${highlights}\n`;
+  if (done.length) ctx += `Completed tasks: ${done.join(', ')}\n`;
+  if (points) ctx += `Key points: ${points}\n`;
+
+  const prompt = `Write a LinkedIn post for Nachiket Prajapati, a Data Engineer at GMS Health Insurance in Regina, Saskatchewan, Canada. He has Azure Data Engineer and Databricks certifications, post-grad in AI & Data Analytics from Saskatchewan Polytechnic, and is originally from Gujarat, India navigating Canadian PR process.
+
+Topic: ${topicMap[topic]}
+Tone: ${toneMap[tone]}
+${ctx || 'Write a general insightful post on this topic.'}
+
+Rules:
+- Strong opening hook (never start with "I am excited to share" or "Thrilled to announce")
+- 150-250 words
+- Authentic, not generic AI-sounding
+- End with an engaging question
+- 3-5 relevant hashtags at end
+- Make it feel genuinely written by a real Data Engineer`;
+
+  document.getElementById('genBtn').disabled = true;
+  document.getElementById('liLoading').style.display = 'block';
+  document.getElementById('outputCard').style.display = 'none';
+
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    });
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Post generate nahi thai. Retry karo.';
+    document.getElementById('outputText').textContent = text;
+    document.getElementById('outputCard').style.display = 'block';
+  } catch(e) {
+    document.getElementById('outputText').textContent = 'Error aavyu. Internet check karo ane retry karo.';
+    document.getElementById('outputCard').style.display = 'block';
+  }
+  document.getElementById('genBtn').disabled = false;
+  document.getElementById('liLoading').style.display = 'none';
+}
+
+function copyPost() {
+  const text = document.getElementById('outputText').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = '✅ Copied!';
+    setTimeout(() => btn.textContent = '📋 Copy to clipboard', 2000);
+  });
+}
+
+function quickAsk(q) {
+  document.getElementById('assistantInput').value = q;
+  askAssistant();
+}
+
+async function askAssistant() {
+  const input = document.getElementById('assistantInput');
+  const q = input.value.trim();
+  if (!q) return;
+
+  document.getElementById('askBtn').disabled = true;
+  document.getElementById('assistantLoading').style.display = 'block';
+  document.getElementById('aiResponse').style.display = 'none';
+
+  const tasksSummary = tasks.length ? `Current tasks: ${tasks.map(t => `${t.text} (${t.done ? 'done' : 'pending'})`).join(', ')}` : 'No tasks yet.';
+  const highlights = document.getElementById('weekHighlights').value.trim();
+
+  const prompt = `You are Nachiket's personal AI assistant. He is a Data Engineer in Regina, Saskatchewan, Canada.
+
+Context:
+- ${tasksSummary}
+- Week highlights: ${highlights || 'none yet'}
+- Today: ${new Date().toLocaleDateString('en-CA', { weekday:'long', month:'long', day:'numeric', year:'numeric' })}
+
+Answer in a mix of Gujarati and English (Hinglish style but Gujarati) — conversational and helpful. Keep response concise.
+
+Question: ${q}`;
+
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    });
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Jawab nahi mali. Retry karo.';
+    document.getElementById('aiResponse').textContent = text;
+    document.getElementById('aiResponse').style.display = 'block';
+  } catch(e) {
+    document.getElementById('aiResponse').textContent = 'Error aavyu. Internet check karo.';
+    document.getElementById('aiResponse').style.display = 'block';
+  }
+  document.getElementById('askBtn').disabled = false;
+  document.getElementById('assistantLoading').style.display = 'none';
+  input.value = '';
+}
+
+init();
+</script>
+</body>
+</html>
