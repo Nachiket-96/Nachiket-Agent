@@ -395,7 +395,7 @@ function setGreeting() {
 }
 
 function handleGoogleLogin() {
-  const redirectUri = window.location.origin + '/auth/callback';
+  const redirectUri = window.location.origin;
   const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token&scope=${encodeURIComponent(SCOPES)}&prompt=consent`;
   window.location.href = url;
 }
