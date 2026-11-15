@@ -12,6 +12,9 @@ import requests
 MAX_QUESTION_LENGTH = 500
 DEFAULT_MODEL = "gemini-flash-latest"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo"
+TOKENINFO_TIMEOUT = 10
+REQUIRED_ENV = ("GEMINI_API_KEY", "GOOGLE_CLIENT_ID", "ALLOWED_EMAIL")
 
 # Upstream statuses worth retrying; network errors count as temporary too
 TEMPORARY = frozenset({429, 500, 503})
@@ -42,6 +45,46 @@ Clock = Callable[[], float]
 
 class DeadlineExceeded(requests.Timeout):
     """The total time budget ran out while reading the response."""
+
+
+def verify_user(
+    auth_header: str | None,
+    env: Mapping[str, str],
+    get: Callable[..., Any] = requests.get,
+) -> tuple[bool, int, str]:
+    # Stops anonymous callers: no bearer token, no access
+    scheme, _, token = (auth_header or "").partition(" ")
+    token = token.strip()
+    if scheme.lower() != "bearer" or not token:
+        return False, 401, "not_signed_in"
+
+    # Stops forged tokens: only Google can say whether a token is real
+    try:
+        response = get(TOKENINFO_URL, params={"access_token": token}, timeout=TOKENINFO_TIMEOUT)
+    except requests.RequestException:
+        return False, 502, "google_unreachable"
+
+    # Stops expired or revoked tokens
+    if response.status_code != 200:
+        return False, 401, "token_expired"
+    try:
+        info = response.json()
+    except ValueError:
+        return False, 502, "google_unreachable"
+    if not isinstance(info, dict):
+        return False, 502, "google_unreachable"
+
+    # Stops tokens issued to another app from being replayed here
+    if info.get("aud") != env.get("GOOGLE_CLIENT_ID"):
+        return False, 403, "wrong_app"
+
+    # Stops every Google account except the verified owner
+    email = str(info.get("email") or "")
+    verified = info.get("email_verified") in (True, "true")
+    if not email or not verified or email.lower() != env.get("ALLOWED_EMAIL", "").strip().lower():
+        return False, 403, "not_allowed"
+
+    return True, 200, ""
 
 
 def _read_body(response: Any, deadline: float, clock: Clock) -> bytes:
@@ -137,9 +180,11 @@ def _try_model(
 
 def handle(
     method: str,
+    auth_header: str | None,
     body: Mapping[str, Any],
     env: Mapping[str, str],
     post: Callable[..., Any] = requests.post,
+    get: Callable[..., Any] = requests.get,
     sleep: Callable[[float], None] = time.sleep,
     clock: Clock = time.monotonic,
 ) -> tuple[int, dict]:
@@ -147,10 +192,19 @@ def handle(
     if method != "POST":
         return 405, {"error": "method_not_allowed"}
 
-    # Read the key from the server environment, never from the browser
-    key = env.get("GEMINI_API_KEY")
-    if not key:
+    # Read the key and the owner settings from the server environment, never from the browser
+    if not all(env.get(name) for name in REQUIRED_ENV):
         return 500, {"error": "server_not_configured"}
+    key = env["GEMINI_API_KEY"]
+
+    # One time budget covers the user check, every attempt, wait and the fallback
+    deadline = clock() + TOTAL_DEADLINE
+
+    # Check the user before anything reaches the model; never log the token or email
+    allowed, status, reason = verify_user(auth_header, env, get=get)
+    if not allowed:
+        logger.warning("auth rejected: %s", reason)
+        return status, {"error": reason}
 
     # Read the question as a string and cut it to the maximum length
     question = str(body.get("question", "")).strip()[:MAX_QUESTION_LENGTH]
@@ -159,9 +213,6 @@ def handle(
 
     # Pick the model, with a default when none is configured
     model = env.get("GEMINI_MODEL") or DEFAULT_MODEL
-
-    # One time budget covers every attempt, wait and the fallback
-    deadline = clock() + TOTAL_DEADLINE
 
     # Try the main model with retries
     outcome, status, text = _try_model(post, sleep, clock, deadline, model, key, question, MAX_ATTEMPTS)
@@ -192,7 +243,7 @@ class handler(BaseHTTPRequestHandler):
         if not isinstance(body, dict):
             body = {}
 
-        status, reply = handle("POST", body, os.environ)
+        status, reply = handle("POST", self.headers.get("Authorization"), body, os.environ)
         self._send(status, reply)
 
     def do_GET(self) -> None:
