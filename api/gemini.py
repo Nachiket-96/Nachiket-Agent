@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import random
 import time
 from collections.abc import Callable, Mapping
 from http.server import BaseHTTPRequestHandler
@@ -15,8 +16,17 @@ GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:ge
 # Upstream statuses worth retrying; network errors count as temporary too
 TEMPORARY = frozenset({429, 500, 503})
 MAX_ATTEMPTS = 3
-# Wait before attempt 2 and attempt 3
+# Wait before attempt 2 and attempt 3, each spread by +/- JITTER
 BACKOFF_SECONDS = (1, 2)
+JITTER = 0.2
+
+# Time limits in seconds. A slow read can overrun the deadline by up to
+# READ_TIMEOUT, so maxDuration in vercel.json must exceed TOTAL_DEADLINE + READ_TIMEOUT
+TOTAL_DEADLINE = 25
+CONNECT_TIMEOUT = 5
+READ_TIMEOUT = 15
+# Skip an attempt when less time than this is left
+MIN_ATTEMPT_TIME = 2
 
 # Outcomes of one attempt
 OK = "ok"
@@ -27,24 +37,57 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("gemini")
 
 Outcome = tuple[str, int | None, str | None]
+Clock = Callable[[], float]
 
 
-def _try_once(post: Callable[..., Any], model: str, key: str, question: str, attempt: int) -> Outcome:
+class DeadlineExceeded(requests.Timeout):
+    """The total time budget ran out while reading the response."""
+
+
+def _read_body(response: Any, deadline: float, clock: Clock) -> bytes:
+    # Read in chunks so a slow trickle cannot run past the deadline
+    chunks = []
+    for chunk in response.iter_content(chunk_size=8192):
+        if clock() > deadline:
+            raise DeadlineExceeded()
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _try_once(
+    post: Callable[..., Any],
+    clock: Clock,
+    deadline: float,
+    model: str,
+    key: str,
+    question: str,
+    attempt: int,
+) -> Outcome:
+    # Cap both timeouts by the time left, since requests applies them per phase, not in total
+    remaining = deadline - clock()
+    timeout = (min(CONNECT_TIMEOUT, remaining), min(READ_TIMEOUT, remaining))
+
     # Call Gemini with the key in a header, not in the URL
     try:
         response = post(
             GEMINI_URL.format(model=model),
             headers={"x-goog-api-key": key},
             json={"contents": [{"role": "user", "parts": [{"text": question}]}]},
-            timeout=30,
+            timeout=timeout,
+            stream=True,
         )
+        try:
+            status = response.status_code
+            # Only a success needs the body; error bodies are never read
+            raw = _read_body(response, deadline, clock) if status == 200 else b""
+        finally:
+            response.close()
     except requests.RequestException as exc:
         # Log only the exception class, never its message
         logger.warning("model=%s attempt=%d error=%s", model, attempt, type(exc).__name__)
         return TEMPORARY_ERROR, None, None
 
     # Log only the status, never the key, question or response body
-    status = response.status_code
     logger.info("model=%s attempt=%d status=%d", model, attempt, status)
 
     if status in TEMPORARY:
@@ -54,7 +97,7 @@ def _try_once(post: Callable[..., Any], model: str, key: str, question: str, att
 
     # Return the text of the first candidate; an unexpected shape is permanent
     try:
-        text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+        text = json.loads(raw)["candidates"][0]["content"]["parts"][0]["text"]
     except (ValueError, KeyError, IndexError, TypeError):
         logger.warning("model=%s attempt=%d error=unexpected_response", model, attempt)
         return PERMANENT_ERROR, status, None
@@ -64,6 +107,8 @@ def _try_once(post: Callable[..., Any], model: str, key: str, question: str, att
 def _try_model(
     post: Callable[..., Any],
     sleep: Callable[[float], None],
+    clock: Clock,
+    deadline: float,
     model: str,
     key: str,
     question: str,
@@ -72,9 +117,19 @@ def _try_model(
     # Retry temporary errors with backoff; stop at once on success or a permanent error
     outcome: Outcome = (TEMPORARY_ERROR, None, None)
     for attempt in range(1, attempts + 1):
+        # Backoff with jitter, so many clients do not retry at the same moment
+        wait = 0.0
         if attempt > 1:
-            sleep(BACKOFF_SECONDS[attempt - 2])
-        outcome = _try_once(post, model, key, question, attempt)
+            wait = BACKOFF_SECONDS[attempt - 2] * random.uniform(1 - JITTER, 1 + JITTER)
+
+        # Stop when the deadline leaves no room for the wait and a useful attempt
+        if deadline - clock() < wait + MIN_ATTEMPT_TIME:
+            logger.warning("model=%s attempt=%d skipped=deadline", model, attempt)
+            break
+
+        if wait:
+            sleep(wait)
+        outcome = _try_once(post, clock, deadline, model, key, question, attempt)
         if outcome[0] != TEMPORARY_ERROR:
             break
     return outcome
@@ -86,6 +141,7 @@ def handle(
     env: Mapping[str, str],
     post: Callable[..., Any] = requests.post,
     sleep: Callable[[float], None] = time.sleep,
+    clock: Clock = time.monotonic,
 ) -> tuple[int, dict]:
     # Only accept POST requests
     if method != "POST":
@@ -104,13 +160,16 @@ def handle(
     # Pick the model, with a default when none is configured
     model = env.get("GEMINI_MODEL") or DEFAULT_MODEL
 
+    # One time budget covers every attempt, wait and the fallback
+    deadline = clock() + TOTAL_DEADLINE
+
     # Try the main model with retries
-    outcome, status, text = _try_model(post, sleep, model, key, question, MAX_ATTEMPTS)
+    outcome, status, text = _try_model(post, sleep, clock, deadline, model, key, question, MAX_ATTEMPTS)
 
     # Try the fallback model once if the main model stayed temporarily unavailable
     fallback = env.get("GEMINI_FALLBACK_MODEL")
     if outcome == TEMPORARY_ERROR and fallback:
-        outcome, status, text = _try_model(post, sleep, fallback, key, question, 1)
+        outcome, status, text = _try_model(post, sleep, clock, deadline, fallback, key, question, 1)
 
     # Map the result for the browser, without Google's error text
     if outcome == OK:
