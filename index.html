@@ -219,6 +219,7 @@
     font-size: 14px; line-height: 1.7; color: var(--text); display: none;
     white-space: pre-wrap;
   }
+  .ai-sources { font-size: 11px; color: var(--muted); margin-top: 6px; display: none; }
   .quick-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
   .quick-btn {
     padding: 8px 14px; border-radius: 999px;
@@ -260,7 +261,8 @@
     <img src="https://www.google.com/favicon.ico" alt="Google">
     Google sathe login karo
   </button>
-  <div class="auth-note">Tara Gmail ane Calendar read karva mate Google login joie. Koi data share nathi thatu.</div>
+  <div class="auth-note" id="authMessage" style="display:none; color: var(--accent3);"></div>
+  <div class="auth-note">Google login thi tamara aaj na Calendar events ane unread Gmail vanchay chhe. Emails nu fakt sender, subject ane preview vanchay chhe, aakho email nahi. Aa data fakt tamara saval no jawab aapva AI ne mokalay chhe.</div>
 </div>
 
 <!-- Main App -->
@@ -272,7 +274,7 @@
         <div class="header-name">Nachiket 👋</div>
         <div class="header-date" id="todayDate"></div>
       </div>
-      <div class="avatar">NP</div>
+      <div class="avatar" id="avatar" onclick="confirmSignOut()" style="cursor:pointer;" title="Logout">NP</div>
     </div>
   </div>
 
@@ -283,9 +285,9 @@
   </div>
 
   <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('tasks', this)">✅ Tasks</button>
-    <button class="tab-btn" onclick="switchTab('linkedin', this)">💼 LinkedIn</button>
-    <button class="tab-btn" onclick="switchTab('assistant', this)">🤖 Assistant</button>
+    <button class="tab-btn active" id="top-tasks" onclick="switchTab('tasks')">✅ Tasks</button>
+    <button class="tab-btn" id="top-linkedin" onclick="switchTab('linkedin')">💼 LinkedIn</button>
+    <button class="tab-btn" id="top-assistant" onclick="switchTab('assistant')">🤖 Assistant</button>
   </div>
 
   <!-- Tasks Tab -->
@@ -329,7 +331,7 @@
       </select>
     </div>
     <button class="gen-btn" id="genBtn" onclick="generateLinkedIn()">✨ LinkedIn Post Generate Karo</button>
-    <div class="loading" id="liLoading"><span class="spinner"></span>Claude post lakhse che...</div>
+    <div class="loading" id="liLoading"><span class="spinner"></span>Post lakhay chhe...</div>
     <div class="output-card" id="outputCard">
       <div class="output-label">Taro post ready che</div>
       <div class="output-text" id="outputText"></div>
@@ -353,38 +355,164 @@
     </div>
     <div class="loading" id="assistantLoading" style="display:none; text-align:center; padding:1rem; color:var(--muted); font-size:14px;"><span class="spinner"></span>Vicharchu che...</div>
     <div class="ai-response" id="aiResponse"></div>
+    <div class="ai-sources" id="aiSources"></div>
   </div>
 
   <div class="bottom-nav">
-    <div class="nav-item active" id="nav-tasks" onclick="switchTab('tasks', null, 'nav-tasks')">
+    <div class="nav-item active" id="nav-tasks" onclick="switchTab('tasks')">
       <div class="nav-icon">✅</div><div class="nav-label">Tasks</div>
     </div>
-    <div class="nav-item" id="nav-linkedin" onclick="switchTab('linkedin', null, 'nav-linkedin')">
+    <div class="nav-item" id="nav-linkedin" onclick="switchTab('linkedin')">
       <div class="nav-icon">💼</div><div class="nav-label">LinkedIn</div>
     </div>
-    <div class="nav-item" id="nav-assistant" onclick="switchTab('assistant', null, 'nav-assistant')">
+    <div class="nav-item" id="nav-assistant" onclick="switchTab('assistant')">
       <div class="nav-icon">🤖</div><div class="nav-label">Assistant</div>
     </div>
   </div>
 </div>
 
 <script>
-const GEMINI_KEY = 'AIzaSyDZzSCF_qmBiAs39L-N8U3V-TqECfRX-iQ';
+// A client ID is public by design: it only tells Google which app is asking. No secret lives in this file.
 const GOOGLE_CLIENT_ID = '676328006759-ufuthu3hb8ge2sno54i98dn3a9oui4fp.apps.googleusercontent.com';
-const SCOPES = 'openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly';
+// openid + email let the server check who is calling; Gmail and Calendar are read-only
+const SCOPES = [
+  'openid',
+  'email',
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/calendar.readonly',
+].join(' ');
+
+const AUTH_KEY = 'n_auth';
+const STATE_KEY = 'n_oauth_state';
+const HIGHLIGHTS_KEY = 'n_highlights';
+const CONTEXT_TTL_MS = 5 * 60 * 1000;
+// Treat the token as expired a minute early, so it never runs out mid-request
+const EXPIRY_MARGIN_S = 60;
+const SERVER_MAX_TASKS = 50;
+
+const SESSION_ENDED = 'Session puru thayu. Fari login karo.';
+const AI_ERRORS = {
+  ai_rate_limited: 'AI ni limit aavi gai. Thodi var pachhi try karo.',
+  ai_busy: 'AI hamna busy chhe. Ek minute pachhi try karo.',
+  ai_error: 'AI ma kaik garbad thai. Fari try karo.',
+  ai_empty: 'AI e khali jawab aapyo. Fari try karo.',
+  server_not_configured: 'Server nu setup puru nathi. Vercel settings check karo.',
+  not_allowed: 'Aa Google account ne aa app vaparvani parvangi nathi.',
+  wrong_app: 'Aa login aa app mate nathi. Logout kari ne fari login karo.',
+};
+
+// An error whose message is safe to show to the user
+class AppError extends Error {}
+// Google answered 401: the token is no longer valid
+class GoogleAuthError extends Error {}
 
 let tasks = JSON.parse(localStorage.getItem('n_tasks') || '[]');
-let accessToken = localStorage.getItem('n_gtoken') || '';
+let auth = loadAuth();
+let contextCache = null;
 
 function saveTasks() { localStorage.setItem('n_tasks', JSON.stringify(tasks)); }
 
+// ---------- Sign-in ----------
+
+function loadAuth() {
+  // The old entry had no expiry time, so it is never trusted again
+  localStorage.removeItem('n_gtoken');
+  try {
+    const saved = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null');
+    if (saved && saved.token && saved.expiresAt > Date.now()) return saved;
+  } catch (e) { /* broken entry: treat as signed out */ }
+  localStorage.removeItem(AUTH_KEY);
+  return null;
+}
+
+function getToken() {
+  // An expired token counts as signed out
+  if (auth && auth.expiresAt > Date.now()) return auth.token;
+  return null;
+}
+
+function readTokenFromRedirect() {
+  const hash = window.location.hash.slice(1);
+  if (!hash) return;
+  const params = new URLSearchParams(hash);
+  if (!params.has('access_token') && !params.has('error')) return;
+
+  const expectedState = sessionStorage.getItem(STATE_KEY);
+  sessionStorage.removeItem(STATE_KEY);
+  // Clear the hash at once, so the token never stays in the address bar or history
+  window.history.replaceState({}, '', window.location.pathname + window.location.search);
+
+  // Accept the token only if Google sent back the state this tab created
+  if (!expectedState || params.get('state') !== expectedState) {
+    showLoginMessage('Login verify na thayu. Fari login karo.');
+    return;
+  }
+  if (params.has('error')) {
+    showLoginMessage('Login puru na thayu. Fari try karo.');
+    return;
+  }
+
+  const expiresIn = Number(params.get('expires_in')) || 3600;
+  auth = {
+    token: params.get('access_token'),
+    expiresAt: Date.now() + Math.max(expiresIn - EXPIRY_MARGIN_S, 0) * 1000,
+  };
+  localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+}
+
+function handleGoogleLogin() {
+  // A random state ties Google's answer to this login click
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  const state = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+  sessionStorage.setItem(STATE_KEY, state);
+
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: window.location.origin,
+    response_type: 'token',
+    scope: SCOPES,
+    state,
+  });
+  window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+}
+
+function showLoginMessage(message) {
+  const box = document.getElementById('authMessage');
+  box.textContent = message || '';
+  box.style.display = message ? 'block' : 'none';
+}
+
+function signOut(message) {
+  auth = null;
+  contextCache = null;
+  localStorage.removeItem(AUTH_KEY);
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth-screen').style.display = '';
+  showLoginMessage(message);
+}
+
+function confirmSignOut() {
+  if (confirm('Logout karvu chhe?')) signOut('Tame logout thai gaya.');
+}
+
+function showApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+}
+
+// ---------- Start ----------
+
 function init() {
-  const urlParams = new URLSearchParams(window.location.hash.replace('#','?'));
-  const token = urlParams.get('access_token');
-  if (token) { accessToken = token; localStorage.setItem('n_gtoken', token); window.history.replaceState({}, '', '/'); }
-  if (accessToken) showApp();
+  readTokenFromRedirect();
+  if (getToken()) showApp();
   setGreeting();
   document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-CA', { weekday:'long', month:'long', day:'numeric' });
+
+  // Restore the week highlights and save them as the user types
+  const highlights = document.getElementById('weekHighlights');
+  highlights.value = localStorage.getItem(HIGHLIGHTS_KEY) || '';
+  highlights.addEventListener('input', () => localStorage.setItem(HIGHLIGHTS_KEY, highlights.value));
+
   renderTasks();
 }
 
@@ -394,25 +522,14 @@ function setGreeting() {
   document.getElementById('greeting').textContent = g;
 }
 
-function handleGoogleLogin() {
-  const redirectUri = 'https://nachiket-agent.vercel.app';
-  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token&scope=${encodeURIComponent(SCOPES)}&prompt=consent`;
-  window.location.href = url;
-}
-
-function showApp() {
-  document.getElementById('auth-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-}
-
-function switchTab(name, btn, navId) {
+function switchTab(name) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
-  if (btn) btn.classList.add('active');
-  const nav = navId || 'nav-' + name;
-  document.getElementById(nav)?.classList.add('active');
+  // Keep the top tabs and the bottom nav in sync
+  document.getElementById('top-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
   if (name === 'linkedin') updateWeekPreview();
 }
 
@@ -424,6 +541,8 @@ function updateWeekPreview() {
   if (done.length) preview += (preview ? '\n' : '') + 'Completed: ' + done.join(', ');
   document.getElementById('weekPreview').textContent = preview || 'Tasks tab ma week highlights add karo — ae ahi dikhshe';
 }
+
+// ---------- Tasks ----------
 
 const catMap = { azure: ['Azure/Data', 'cat-azure'], career: ['Career', 'cat-career'], ai: ['AI/Tech', 'cat-ai'], other: ['Other', 'cat-other'] };
 
@@ -445,72 +564,93 @@ function deleteTask(id) {
   tasks = tasks.filter(t => t.id !== id); saveTasks(); renderTasks();
 }
 
+// Build an element whose text is set with textContent, so it can never run as HTML
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
 function renderTasks() {
   const list = document.getElementById('taskList');
-  if (!tasks.length) { list.innerHTML = '<div class="empty-tasks">Koi task nathi — upar thi add karo 👆</div>'; }
-  else {
-    list.innerHTML = tasks.map(t => {
+  list.replaceChildren();
+  if (!tasks.length) {
+    list.append(el('div', 'empty-tasks', 'Koi task nathi — upar thi add karo 👆'));
+  } else {
+    for (const t of tasks) {
       const [label, cls] = catMap[t.cat] || ['Other', 'cat-other'];
-      return `<div class="task-item ${t.done ? 'done' : ''}">
-        <div class="task-check ${t.done ? 'checked' : ''}" onclick="toggleTask(${t.id})"></div>
-        <div class="task-text ${t.done ? 'done' : ''}">${t.text}</div>
-        <span class="cat-badge ${cls}">${label}</span>
-        <span class="task-del" onclick="deleteTask(${t.id})">✕</span>
-      </div>`;
-    }).join('');
+      const item = el('div', 'task-item' + (t.done ? ' done' : ''));
+
+      const check = el('div', 'task-check' + (t.done ? ' checked' : ''));
+      check.addEventListener('click', () => toggleTask(t.id));
+
+      const del = el('span', 'task-del', '✕');
+      del.addEventListener('click', () => deleteTask(t.id));
+
+      item.append(
+        check,
+        el('div', 'task-text' + (t.done ? ' done' : ''), t.text),
+        el('span', 'cat-badge ' + cls, label),
+        del,
+      );
+      list.append(item);
+    }
   }
   document.getElementById('s-total').textContent = tasks.length;
   document.getElementById('s-done').textContent = tasks.filter(t => t.done).length;
   document.getElementById('s-pending').textContent = tasks.filter(t => !t.done).length;
 }
 
+// ---------- Our server ----------
+
+async function callAI(payload) {
+  const token = getToken();
+  if (!token) {
+    signOut(SESSION_ENDED);
+    throw new AppError(SESSION_ENDED);
+  }
+
+  let res;
+  try {
+    res = await fetch('/api/gemini', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    });
+  } catch (e) {
+    throw new AppError('Server sudhi pahonchi na shakaya. Internet check karo.');
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) {
+    signOut(SESSION_ENDED);
+    throw new AppError(SESSION_ENDED);
+  }
+  if (!res.ok) throw new AppError(AI_ERRORS[data.error] || 'Kaik khotu thayu. Fari try karo.');
+  return data.text;
+}
+
 async function generateLinkedIn() {
-  const topic = document.getElementById('liTopic').value;
-  const points = document.getElementById('liPoints').value.trim();
-  const tone = document.getElementById('liTone').value;
-  const highlights = document.getElementById('weekHighlights').value.trim();
-  const done = tasks.filter(t => t.done).map(t => t.text);
-
-  const topicMap = { data_engineering: 'Data Engineering and Azure cloud work', career: 'Career growth and learning journey in Canada', ai_trends: 'AI and Tech trends' };
-  const toneMap = { personal: 'personal and authentic tone', story: 'storytelling narrative with a hook', tips: 'practical tips and insights list' };
-
-  let ctx = '';
-  if (highlights) ctx += `Week highlights: ${highlights}\n`;
-  if (done.length) ctx += `Completed tasks: ${done.join(', ')}\n`;
-  if (points) ctx += `Key points: ${points}\n`;
-
-  const prompt = `Write a LinkedIn post for Nachiket Prajapati, a Data Engineer at GMS Health Insurance in Regina, Saskatchewan, Canada. He has Azure Data Engineer and Databricks certifications, post-grad in AI & Data Analytics from Saskatchewan Polytechnic, and is originally from Gujarat, India navigating Canadian PR process.
-
-Topic: ${topicMap[topic]}
-Tone: ${toneMap[tone]}
-${ctx || 'Write a general insightful post on this topic.'}
-
-Rules:
-- Strong opening hook (never start with "I am excited to share" or "Thrilled to announce")
-- 150-250 words
-- Authentic, not generic AI-sounding
-- End with an engaging question
-- 3-5 relevant hashtags at end
-- Make it feel genuinely written by a real Data Engineer`;
+  const payload = {
+    task: 'linkedin',
+    topic: document.getElementById('liTopic').value,
+    tone: document.getElementById('liTone').value,
+    points: document.getElementById('liPoints').value.trim(),
+    highlights: document.getElementById('weekHighlights').value.trim(),
+    doneTasks: tasks.filter(t => t.done).map(t => t.text),
+  };
 
   document.getElementById('genBtn').disabled = true;
   document.getElementById('liLoading').style.display = 'block';
   document.getElementById('outputCard').style.display = 'none';
 
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    });
-    const data = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Post generate nahi thai. Retry karo.';
-    document.getElementById('outputText').textContent = text;
-    document.getElementById('outputCard').style.display = 'block';
-  } catch(e) {
-    document.getElementById('outputText').textContent = 'Error aavyu. Internet check karo ane retry karo.';
-    document.getElementById('outputCard').style.display = 'block';
+    document.getElementById('outputText').textContent = await callAI(payload);
+  } catch (e) {
+    document.getElementById('outputText').textContent = e instanceof AppError ? e.message : 'Error aavyu. Fari try karo.';
   }
+  document.getElementById('outputCard').style.display = 'block';
   document.getElementById('genBtn').disabled = false;
   document.getElementById('liLoading').style.display = 'none';
 }
@@ -524,6 +664,93 @@ function copyPost() {
   });
 }
 
+// ---------- Google Calendar and Gmail (read-only) ----------
+
+async function googleGet(url) {
+  const token = getToken();
+  if (!token) throw new GoogleAuthError();
+  const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+  if (res.status === 401) throw new GoogleAuthError();
+  if (!res.ok) throw new Error(`google_${res.status}`);
+  return res.json();
+}
+
+function formatWhen(start) {
+  if (!start) return '';
+  if (!start.dateTime) return 'All day';
+  return new Date(start.dateTime).toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit' });
+}
+
+async function loadCalendar() {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  const params = new URLSearchParams({
+    timeMin: start.toISOString(),
+    timeMax: end.toISOString(),
+    singleEvents: 'true',
+    orderBy: 'startTime',
+    maxResults: '15',
+  });
+  const data = await googleGet(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`);
+  return (data.items || []).map(e => ({ when: formatWhen(e.start), title: e.summary || '(no title)' }));
+}
+
+// Gmail snippets come HTML-escaped (for example &#39;); decode them as plain text without running anything
+function decodeEntities(text) {
+  return new DOMParser().parseFromString(text, 'text/html').documentElement.textContent;
+}
+
+async function loadEmails() {
+  const base = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
+  const listParams = new URLSearchParams({ q: 'in:inbox is:unread newer_than:2d', maxResults: '8' });
+  const list = await googleGet(`${base}?${listParams}`);
+
+  // Only the From and Subject headers and Google's short preview; the full body is never fetched
+  const metaParams = new URLSearchParams({ format: 'metadata' });
+  metaParams.append('metadataHeaders', 'From');
+  metaParams.append('metadataHeaders', 'Subject');
+
+  return Promise.all((list.messages || []).map(async m => {
+    const msg = await googleGet(`${base}/${encodeURIComponent(m.id)}?${metaParams}`);
+    const headers = msg.payload?.headers || [];
+    const header = name => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || '';
+    return { from: header('From'), subject: header('Subject'), snippet: decodeEntities(msg.snippet || '') };
+  }));
+}
+
+async function loadContext() {
+  if (contextCache && Date.now() - contextCache.at < CONTEXT_TTL_MS) return contextCache.value;
+
+  // Load both at once; one failing must not stop the other
+  const [calendar, emails] = await Promise.allSettled([loadCalendar(), loadEmails()]);
+  if ([calendar, emails].some(r => r.status === 'rejected' && r.reason instanceof GoogleAuthError)) {
+    signOut(SESSION_ENDED);
+    throw new AppError(SESSION_ENDED);
+  }
+
+  const unavailable = [];
+  if (calendar.status === 'rejected') unavailable.push('calendar');
+  if (emails.status === 'rejected') unavailable.push('emails');
+  const value = {
+    calendar: calendar.status === 'fulfilled' ? calendar.value : [],
+    emails: emails.status === 'fulfilled' ? emails.value : [],
+    unavailable,
+  };
+  // Cache only a complete result, so a failed source is tried again on the next question
+  if (!unavailable.length) contextCache = { at: Date.now(), value };
+  return value;
+}
+
+function describeSources({ calendar, emails, unavailable }) {
+  const part = (name, count, label) => unavailable.includes(name) ? `${label} load na thaya` : `${count} ${label}`;
+  const taskCount = Math.min(tasks.length, SERVER_MAX_TASKS);
+  return `Aa jawab mate vaparyu: ${taskCount} tasks, ${part('calendar', calendar.length, 'aaj na events')}, ${part('emails', emails.length, 'unread emails')}`;
+}
+
+// ---------- Assistant ----------
+
 function quickAsk(q) {
   document.getElementById('assistantInput').value = q;
   askAssistant();
@@ -531,41 +758,32 @@ function quickAsk(q) {
 
 async function askAssistant() {
   const input = document.getElementById('assistantInput');
-  const q = input.value.trim();
-  if (!q) return;
+  const question = input.value.trim();
+  if (!question) return;
 
+  const response = document.getElementById('aiResponse');
+  const sources = document.getElementById('aiSources');
   document.getElementById('askBtn').disabled = true;
   document.getElementById('assistantLoading').style.display = 'block';
-  document.getElementById('aiResponse').style.display = 'none';
-
-  const tasksSummary = tasks.length ? `Current tasks: ${tasks.map(t => `${t.text} (${t.done ? 'done' : 'pending'})`).join(', ')}` : 'No tasks yet.';
-  const highlights = document.getElementById('weekHighlights').value.trim();
-
-  const prompt = `You are Nachiket's personal AI assistant. He is a Data Engineer in Regina, Saskatchewan, Canada.
-
-Context:
-- ${tasksSummary}
-- Week highlights: ${highlights || 'none yet'}
-- Today: ${new Date().toLocaleDateString('en-CA', { weekday:'long', month:'long', day:'numeric', year:'numeric' })}
-
-Answer in a mix of Gujarati and English (Hinglish style but Gujarati) — conversational and helpful. Keep response concise.
-
-Question: ${q}`;
+  response.style.display = 'none';
+  sources.style.display = 'none';
 
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    const context = await loadContext();
+    response.textContent = await callAI({
+      task: 'assistant',
+      question,
+      tasks: tasks.map(t => ({ text: t.text, done: t.done })),
+      highlights: document.getElementById('weekHighlights').value.trim(),
+      today: new Date().toLocaleDateString('en-CA', { weekday:'long', month:'long', day:'numeric', year:'numeric' }),
+      ...context,
     });
-    const data = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Jawab nahi mali. Retry karo.';
-    document.getElementById('aiResponse').textContent = text;
-    document.getElementById('aiResponse').style.display = 'block';
-  } catch(e) {
-    document.getElementById('aiResponse').textContent = 'Error aavyu. Internet check karo.';
-    document.getElementById('aiResponse').style.display = 'block';
+    sources.textContent = describeSources(context);
+    sources.style.display = 'block';
+  } catch (e) {
+    response.textContent = e instanceof AppError ? e.message : 'Error aavyu. Fari try karo.';
   }
+  response.style.display = 'block';
   document.getElementById('askBtn').disabled = false;
   document.getElementById('assistantLoading').style.display = 'none';
   input.value = '';
