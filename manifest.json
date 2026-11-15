@@ -1,7 +1,7 @@
 {
   "name": "Nachiket Agent",
   "short_name": "N-Agent",
-  "description": "Taro personal AI assistant",
+  "description": "Your personal AI assistant",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0f",
