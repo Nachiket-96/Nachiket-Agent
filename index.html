@@ -256,13 +256,13 @@
 <div id="auth-screen">
   <div class="auth-logo">N</div>
   <div class="auth-title">Nachiket Agent</div>
-  <div class="auth-sub">Taro personal AI assistant — tasks, calendar, Gmail, ane LinkedIn badhu ek jagya</div>
+  <div class="auth-sub">Your personal AI assistant: tasks, calendar, Gmail and LinkedIn in one place</div>
   <button class="auth-btn" onclick="handleGoogleLogin()">
     <img src="https://www.google.com/favicon.ico" alt="Google">
-    Google sathe login karo
+    Sign in with Google
   </button>
   <div class="auth-note" id="authMessage" style="display:none; color: var(--accent3);"></div>
-  <div class="auth-note">Google login thi tamara aaj na Calendar events ane unread Gmail vanchay chhe. Emails nu fakt sender, subject ane preview vanchay chhe, aakho email nahi. Aa data fakt tamara saval no jawab aapva AI ne mokalay chhe.</div>
+  <div class="auth-note">Signing in with Google lets the app read today's Calendar events and your unread Gmail. For emails, only the sender, subject and preview are read, never the full message. This data is sent to the AI only to answer your question.</div>
 </div>
 
 <!-- Main App -->
@@ -274,7 +274,7 @@
         <div class="header-name">Nachiket 👋</div>
         <div class="header-date" id="todayDate"></div>
       </div>
-      <div class="avatar" id="avatar" onclick="confirmSignOut()" style="cursor:pointer;" title="Logout">NP</div>
+      <div class="avatar" id="avatar" onclick="confirmSignOut()" style="cursor:pointer;" title="Sign out">NP</div>
     </div>
   </div>
 
@@ -292,9 +292,9 @@
 
   <!-- Tasks Tab -->
   <div id="tab-tasks" class="section active">
-    <div class="section-label">Aaj nu kaam</div>
+    <div class="section-label">Today's tasks</div>
     <div class="task-input-row">
-      <input type="text" id="taskInput" placeholder="Navu task add karo..." onkeydown="if(event.key==='Enter') addTask()">
+      <input type="text" id="taskInput" placeholder="Add a new task..." onkeydown="if(event.key==='Enter') addTask()">
       <select class="cat-select" id="taskCat">
         <option value="azure">⚡ Azure</option>
         <option value="career">🎯 Career</option>
@@ -303,18 +303,18 @@
       </select>
       <button class="add-btn" onclick="addTask()">+</button>
     </div>
-    <div id="taskList"><div class="empty-tasks">Koi task nathi — upar thi add karo 👆</div></div>
+    <div id="taskList"><div class="empty-tasks">No tasks yet. Add one above. 👆</div></div>
 
     <div style="margin-top: 20px;">
-      <div class="section-label">Week highlights (LinkedIn mate)</div>
-      <textarea id="weekHighlights" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;resize:none;min-height:80px;line-height:1.5;" placeholder="Aa week ma shu karyun? e.g. ADF pipeline deploy karyun, Databricks certification complete karyun..."></textarea>
+      <div class="section-label">Week highlights (for LinkedIn)</div>
+      <textarea id="weekHighlights" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;resize:none;min-height:80px;line-height:1.5;" placeholder="What did you do this week? e.g. Deployed an ADF pipeline, completed a Databricks certification..."></textarea>
     </div>
   </div>
 
   <!-- LinkedIn Tab -->
   <div id="tab-linkedin" class="section">
     <div class="li-card">
-      <div class="week-highlight" id="weekPreview">Tasks tab ma week highlights add karo — ae ahi dikhshe</div>
+      <div class="week-highlight" id="weekPreview">Add week highlights in the Tasks tab. They will show here.</div>
       <label>Topic</label>
       <select id="liTopic">
         <option value="data_engineering">Data Engineering / Azure</option>
@@ -322,7 +322,7 @@
         <option value="ai_trends">AI & Tech Trends</option>
       </select>
       <label>Key points</label>
-      <textarea id="liPoints" placeholder="e.g. ADF pipeline optimize karyu, Delta Live Tables sikhyu, PR application progress..."></textarea>
+      <textarea id="liPoints" placeholder="e.g. Optimized an ADF pipeline, learned Delta Live Tables, PR application progress..."></textarea>
       <label>Tone</label>
       <select id="liTone">
         <option value="personal">Personal & authentic</option>
@@ -330,10 +330,10 @@
         <option value="tips">Tips & insights</option>
       </select>
     </div>
-    <button class="gen-btn" id="genBtn" onclick="generateLinkedIn()">✨ LinkedIn Post Generate Karo</button>
-    <div class="loading" id="liLoading"><span class="spinner"></span>Post lakhay chhe...</div>
+    <button class="gen-btn" id="genBtn" onclick="generateLinkedIn()">✨ Generate LinkedIn post</button>
+    <div class="loading" id="liLoading"><span class="spinner"></span>Writing your post...</div>
     <div class="output-card" id="outputCard">
-      <div class="output-label">Taro post ready che</div>
+      <div class="output-label">Your post is ready</div>
       <div class="output-text" id="outputText"></div>
       <button class="copy-btn" onclick="copyPost()">📋 Copy to clipboard</button>
     </div>
@@ -343,17 +343,17 @@
   <div id="tab-assistant" class="section">
     <div class="section-label">Quick questions</div>
     <div class="quick-btns">
-      <button class="quick-btn" onclick="quickAsk('Aaj nu schedule shu che?')">📅 Aaj nu schedule</button>
-      <button class="quick-btn" onclick="quickAsk('Inbox ma important emails che?')">📧 Important emails</button>
-      <button class="quick-btn" onclick="quickAsk('Aaj shu priority tasks che?')">🎯 Priority tasks</button>
-      <button class="quick-btn" onclick="quickAsk('Week summary banavo')">📊 Week summary</button>
+      <button class="quick-btn" onclick="quickAsk('What is my schedule today?')">📅 Today's schedule</button>
+      <button class="quick-btn" onclick="quickAsk('Are there any important emails in my inbox?')">📧 Important emails</button>
+      <button class="quick-btn" onclick="quickAsk('What are my priority tasks today?')">🎯 Priority tasks</button>
+      <button class="quick-btn" onclick="quickAsk('Give me a summary of my week.')">📊 Week summary</button>
     </div>
-    <div class="section-label">Koi pan puchho</div>
+    <div class="section-label">Ask anything</div>
     <div class="ai-input-row">
-      <input type="text" id="assistantInput" placeholder="Koi pan puchho..." onkeydown="if(event.key==='Enter') askAssistant()">
-      <button class="ask-btn" id="askBtn" onclick="askAssistant()">Puchho</button>
+      <input type="text" id="assistantInput" placeholder="Ask anything..." onkeydown="if(event.key==='Enter') askAssistant()">
+      <button class="ask-btn" id="askBtn" onclick="askAssistant()">Ask</button>
     </div>
-    <div class="loading" id="assistantLoading" style="display:none; text-align:center; padding:1rem; color:var(--muted); font-size:14px;"><span class="spinner"></span>Vicharchu che...</div>
+    <div class="loading" id="assistantLoading" style="display:none; text-align:center; padding:1rem; color:var(--muted); font-size:14px;"><span class="spinner"></span>Thinking...</div>
     <div class="ai-response" id="aiResponse"></div>
     <div class="ai-sources" id="aiSources"></div>
   </div>
@@ -390,15 +390,15 @@ const CONTEXT_TTL_MS = 5 * 60 * 1000;
 const EXPIRY_MARGIN_S = 60;
 const SERVER_MAX_TASKS = 50;
 
-const SESSION_ENDED = 'Session puru thayu. Fari login karo.';
+const SESSION_ENDED = 'Your session has ended. Please sign in again.';
 const AI_ERRORS = {
-  ai_rate_limited: 'AI ni limit aavi gai. Thodi var pachhi try karo.',
-  ai_busy: 'AI hamna busy chhe. Ek minute pachhi try karo.',
-  ai_error: 'AI ma kaik garbad thai. Fari try karo.',
-  ai_empty: 'AI e khali jawab aapyo. Fari try karo.',
-  server_not_configured: 'Server nu setup puru nathi. Vercel settings check karo.',
-  not_allowed: 'Aa Google account ne aa app vaparvani parvangi nathi.',
-  wrong_app: 'Aa login aa app mate nathi. Logout kari ne fari login karo.',
+  ai_rate_limited: 'The AI usage limit was reached. Please try again in a little while.',
+  ai_busy: 'The AI is busy right now. Please try again in a minute.',
+  ai_error: 'Something went wrong with the AI. Please try again.',
+  ai_empty: 'The AI returned an empty answer. Please try again.',
+  server_not_configured: 'The server is not fully set up. Check the Vercel settings.',
+  not_allowed: 'This Google account is not allowed to use this app.',
+  wrong_app: 'This sign-in is not for this app. Sign out and sign in again.',
 };
 
 // An error whose message is safe to show to the user
@@ -444,11 +444,11 @@ function readTokenFromRedirect() {
 
   // Accept the token only if Google sent back the state this tab created
   if (!expectedState || params.get('state') !== expectedState) {
-    showLoginMessage('Login verify na thayu. Fari login karo.');
+    showLoginMessage('Sign-in could not be verified. Please sign in again.');
     return;
   }
   if (params.has('error')) {
-    showLoginMessage('Login puru na thayu. Fari try karo.');
+    showLoginMessage('Sign-in did not finish. Please try again.');
     return;
   }
 
@@ -492,7 +492,7 @@ function signOut(message) {
 }
 
 function confirmSignOut() {
-  if (confirm('Logout karvu chhe?')) signOut('Tame logout thai gaya.');
+  if (confirm('Do you want to sign out?')) signOut('You have signed out.');
 }
 
 function showApp() {
@@ -539,7 +539,7 @@ function updateWeekPreview() {
   let preview = '';
   if (highlights) preview += highlights;
   if (done.length) preview += (preview ? '\n' : '') + 'Completed: ' + done.join(', ');
-  document.getElementById('weekPreview').textContent = preview || 'Tasks tab ma week highlights add karo — ae ahi dikhshe';
+  document.getElementById('weekPreview').textContent = preview || 'Add week highlights in the Tasks tab. They will show here.';
 }
 
 // ---------- Tasks ----------
@@ -576,7 +576,7 @@ function renderTasks() {
   const list = document.getElementById('taskList');
   list.replaceChildren();
   if (!tasks.length) {
-    list.append(el('div', 'empty-tasks', 'Koi task nathi — upar thi add karo 👆'));
+    list.append(el('div', 'empty-tasks', 'No tasks yet. Add one above. 👆'));
   } else {
     for (const t of tasks) {
       const [label, cls] = catMap[t.cat] || ['Other', 'cat-other'];
@@ -619,7 +619,7 @@ async function callAI(payload) {
       body: JSON.stringify(payload),
     });
   } catch (e) {
-    throw new AppError('Server sudhi pahonchi na shakaya. Internet check karo.');
+    throw new AppError('Could not reach the server. Check your internet connection.');
   }
 
   const data = await res.json().catch(() => ({}));
@@ -627,7 +627,7 @@ async function callAI(payload) {
     signOut(SESSION_ENDED);
     throw new AppError(SESSION_ENDED);
   }
-  if (!res.ok) throw new AppError(AI_ERRORS[data.error] || 'Kaik khotu thayu. Fari try karo.');
+  if (!res.ok) throw new AppError(AI_ERRORS[data.error] || 'Something went wrong. Please try again.');
   return data.text;
 }
 
@@ -648,7 +648,7 @@ async function generateLinkedIn() {
   try {
     document.getElementById('outputText').textContent = await callAI(payload);
   } catch (e) {
-    document.getElementById('outputText').textContent = e instanceof AppError ? e.message : 'Error aavyu. Fari try karo.';
+    document.getElementById('outputText').textContent = e instanceof AppError ? e.message : 'Something went wrong. Please try again.';
   }
   document.getElementById('outputCard').style.display = 'block';
   document.getElementById('genBtn').disabled = false;
@@ -744,9 +744,9 @@ async function loadContext() {
 }
 
 function describeSources({ calendar, emails, unavailable }) {
-  const part = (name, count, label) => unavailable.includes(name) ? `${label} load na thaya` : `${count} ${label}`;
+  const part = (name, count, label) => unavailable.includes(name) ? `${name} could not be loaded` : `${count} ${label}`;
   const taskCount = Math.min(tasks.length, SERVER_MAX_TASKS);
-  return `Aa jawab mate vaparyu: ${taskCount} tasks, ${part('calendar', calendar.length, 'aaj na events')}, ${part('emails', emails.length, 'unread emails')}`;
+  return `Built from: ${taskCount} tasks, ${part('calendar', calendar.length, 'events today')}, ${part('emails', emails.length, 'unread emails')}`;
 }
 
 // ---------- Assistant ----------
@@ -781,7 +781,7 @@ async function askAssistant() {
     sources.textContent = describeSources(context);
     sources.style.display = 'block';
   } catch (e) {
-    response.textContent = e instanceof AppError ? e.message : 'Error aavyu. Fari try karo.';
+    response.textContent = e instanceof AppError ? e.message : 'Something went wrong. Please try again.';
   }
   response.style.display = 'block';
   document.getElementById('askBtn').disabled = false;
