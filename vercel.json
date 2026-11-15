@@ -1,6 +1,6 @@
 {
   "functions": {
-    "api/gemini.py": { "maxDuration": 45 }
+    "api/gemini.py": { "maxDuration": 40 }
   },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }

@@ -13,7 +13,7 @@ MAX_QUESTION_LENGTH = 500
 DEFAULT_MODEL = "gemini-flash-latest"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo"
-TOKENINFO_TIMEOUT = 10
+TOKENINFO_TIMEOUT = (3, 5)
 REQUIRED_ENV = ("GEMINI_API_KEY", "GOOGLE_CLIENT_ID", "ALLOWED_EMAIL")
 
 # Upstream statuses worth retrying; network errors count as temporary too
@@ -25,9 +25,9 @@ JITTER = 0.2
 
 # Time limits in seconds. A slow read can overrun the deadline by up to
 # READ_TIMEOUT, so maxDuration in vercel.json must exceed TOTAL_DEADLINE + READ_TIMEOUT
-TOTAL_DEADLINE = 25
-CONNECT_TIMEOUT = 5
-READ_TIMEOUT = 15
+TOTAL_DEADLINE = 20
+CONNECT_TIMEOUT = 3
+READ_TIMEOUT = 12
 # Skip an attempt when less time than this is left
 MIN_ATTEMPT_TIME = 2
 
